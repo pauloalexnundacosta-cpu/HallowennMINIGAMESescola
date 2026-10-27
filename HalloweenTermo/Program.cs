@@ -1,9 +1,8 @@
 ﻿using System;
-
+using System.Linq;
 
 namespace HalloweenTermo
 {
-
     class Program
     {
         static void Main()
@@ -11,17 +10,17 @@ namespace HalloweenTermo
             Console.Title = "TERMO - Halloween";
 
             string[] palavras = {
-            "MORTE",
-            "BRUXA",
-            "TUMBA",
-            "SUSTO",
-            "VULTO",
-            "RITUA",
-            "OSSOS",
-            "MEDOS",
-            "CORVO",
-            "VELAS"
-        };
+                "MORTE",
+                "BRUXA",
+                "TUMBA",
+                "SUSTO",
+                "VULTO",
+                "RITOS",
+                "OSSOS",
+                "MEDOS",
+                "CORVO",
+                "VELAS"
+            };
 
             Random random = new Random();
             string palavra = palavras[random.Next(palavras.Length)];
@@ -50,12 +49,17 @@ namespace HalloweenTermo
                 Console.WriteLine("Tentativa " + t + "/" + tentativas);
                 Console.Write("Introduz uma palavra: ");
 
-                string resposta = (Console.ReadLine() ?? "")
-                    .Trim().ToUpper();
+                string entrada = Console.ReadLine();
 
-                if (resposta.Length != 5)
+                // Input fechado (EOF): sai em vez de ficar preso no loop
+                if (entrada == null)
+                    break;
+
+                string resposta = entrada.Trim().ToUpper();
+
+                if (resposta.Length != 5 || !resposta.All(char.IsLetter))
                 {
-                    Console.WriteLine("A palavra deve ter 5 letras!");
+                    Console.WriteLine("A palavra deve ter 5 letras (so letras)!");
                     t--;
                     continue;
                 }
