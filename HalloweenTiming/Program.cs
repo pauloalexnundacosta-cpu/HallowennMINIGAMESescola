@@ -8,7 +8,7 @@ namespace HalloweenTiming
     internal static class Program
     {
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
-        const string SecretCode = "7K3";                       // exatamente 3 caracteres
+        const string SecretCode = "MFD";                       // exatamente 3 caracteres
         const int BarWidth = 40;                               // largura da barra (células)
         const int HitsRequired = 5;                            // acertos necessários por selo
         const bool ResetOnMiss = false;                        // true = falhar zera os acertos do selo (muito mais difícil)
