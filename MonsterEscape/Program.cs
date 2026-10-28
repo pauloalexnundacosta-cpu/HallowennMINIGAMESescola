@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
-namespace MonsterEscape
+namespace Prática
 {
-    internal static class Program
+    internal class User
     {
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
         const string SecretCode = "7K3";   // código mostrado no ecrã de vitória (exatamente 3 caracteres)
