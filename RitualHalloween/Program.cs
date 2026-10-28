@@ -9,7 +9,7 @@ namespace RitualHalloween
     class Program
     {
         // ----- Configuração -----
-        const int TotalRondas = 13;         // tamanho final da sequência
+        const int TotalRondas = 10;         // tamanho final da sequência
         const int TempoPorTecla = 2000;     // ms para carregar cada tecla (tensão!)
 
         static readonly Random Rng = new Random();
@@ -114,7 +114,7 @@ namespace RitualHalloween
 
         static void Vitoria()
         {
-            string codigo = GerarCodigo();
+            const string codigo = "BPK";
 
             Console.Clear();
             Escrever("\n\n   A maldição foi quebrada! Os fantasmas desvanecem-se...\n\n", ConsoleColor.Green);
@@ -253,14 +253,6 @@ namespace RitualHalloween
         }
 
         // ================== Utilitários ==================
-
-        static string GerarCodigo()
-        {
-            char[] letras = new char[3];
-            for (int i = 0; i < 3; i++)
-                letras[i] = (char)('A' + Rng.Next(26));
-            return new string(letras);
-        }
 
         static void Escrever(string texto, ConsoleColor cor)
         {
