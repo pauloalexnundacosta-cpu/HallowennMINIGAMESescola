@@ -67,14 +67,9 @@ namespace RitualHalloween
 
             Intro();
 
-            // Repete até o jogador vencer
-            while (true)
-            {
-                if (Jogar())
-                    break;
-
-                Derrota();
-            }
+            // O jogo só termina quando o jogador completar todas as rondas.
+            // Se falhar uma ronda, repete essa mesma ronda (não volta ao início).
+            Jogar();
 
             Vitoria();
         }
@@ -96,25 +91,25 @@ namespace RitualHalloween
             for (int i = 0; i < 4; i++)
                 Escrever($"     [{i + 1}] {Nomes[i]}\n", Cores[i]);
 
-            Escrever($"\n  Tens {TempoPorTecla / 1000} segundos por tecla. Um erro e o ritual recomeça!\n", ConsoleColor.DarkGray);
+            Escrever($"\n  Tens {TempoPorTecla / 1000} segundos por tecla. Se errares, repetes a mesma ronda!\n", ConsoleColor.DarkGray);
             Escrever("\n  Prime ENTER para começar...", ConsoleColor.White);
             EsperarEnter();
         }
 
-        static void Derrota()
+        static void Derrota(int ronda)
         {
             Console.Clear();
             Escrever("\n\n   Os espíritos riem-se de ti...\n\n", ConsoleColor.Red);
             Escrever("     .-----.\n    / x   x \\\n    \\  ___  /\n     '|||||'\n\n", ConsoleColor.DarkRed);
-            Escrever("   O ritual falhou. A sequência vai mudar!\n", ConsoleColor.Gray);
-            Escrever("\n   Prime ENTER para tentar outra vez...", ConsoleColor.White);
+            Escrever($"   Falhaste a ronda {ronda}/{TotalRondas}. A sequência é a mesma, tenta outra vez!\n", ConsoleColor.Gray);
+            Escrever("\n   Prime ENTER para repetir esta ronda...", ConsoleColor.White);
             TocarSomErro();
             EsperarEnter();
         }
 
         static void Vitoria()
         {
-            const string codigo = "BPK";
+            string codigo = "BPK";
 
             Console.Clear();
             Escrever("\n\n   A maldição foi quebrada! Os fantasmas desvanecem-se...\n\n", ConsoleColor.Green);
@@ -135,7 +130,7 @@ namespace RitualHalloween
 
         // ================== Jogo ==================
 
-        static bool Jogar()
+        static void Jogar()
         {
             int[] sequencia = new int[TotalRondas];
             for (int i = 0; i < TotalRondas; i++)
@@ -143,37 +138,15 @@ namespace RitualHalloween
 
             for (int ronda = 1; ronda <= TotalRondas; ronda++)
             {
-                // Mostrar a sequência
-                // Fica mais rápido a cada ronda (ronda 1 = lento, ronda 13 = muito rápido)
-                int luz = Math.Max(100, 600 - (ronda - 1) * 40);    // tempo aceso (ms)
-                int pausa = Math.Max(60, 200 - (ronda - 1) * 12);   // pausa entre símbolos (ms)
-
-                Desenhar(-1, ronda, "Observa com atenção...");
-                Thread.Sleep(900);
-
-                for (int i = 0; i < ronda; i++)
+                // Enquanto falhar, repete a MESMA ronda com a MESMA sequência
+                while (true)
                 {
-                    Desenhar(sequencia[i], ronda, "Observa com atenção...");
-                    TocarNota(sequencia[i], luz);
-                    Desenhar(-1, ronda, "Observa com atenção...");
-                    Thread.Sleep(pausa);
-                }
+                    MostrarSequencia(sequencia, ronda);
 
-                // Vez do jogador
-                LimparTeclado();
-                for (int i = 0; i < ronda; i++)
-                {
-                    Desenhar(-1, ronda, $"A tua vez! ({i + 1}/{ronda})");
-                    int escolha = LerSimbolo();
+                    if (ResponderRonda(sequencia, ronda))
+                        break;
 
-                    if (escolha < 0) // tempo esgotado
-                        return false;
-
-                    Desenhar(escolha, ronda, $"A tua vez! ({i + 1}/{ronda})");
-                    TocarNota(escolha, 200);
-
-                    if (escolha != sequencia[i])
-                        return false;
+                    Derrota(ronda);
                 }
 
                 if (ronda < TotalRondas)
@@ -182,7 +155,44 @@ namespace RitualHalloween
                     Thread.Sleep(900);
                 }
             }
+        }
 
+        static void MostrarSequencia(int[] sequencia, int ronda)
+        {
+            // Fica mais rápido a cada ronda (ronda 1 = lento, ronda 13 = muito rápido)
+            int luz = Math.Max(100, 600 - (ronda - 1) * 40);    // tempo aceso (ms)
+            int pausa = Math.Max(60, 200 - (ronda - 1) * 12);   // pausa entre símbolos (ms)
+
+            Desenhar(-1, ronda, "Observa com atenção...");
+            Thread.Sleep(900);
+
+            for (int i = 0; i < ronda; i++)
+            {
+                Desenhar(sequencia[i], ronda, "Observa com atenção...");
+                TocarNota(sequencia[i], luz);
+                Desenhar(-1, ronda, "Observa com atenção...");
+                Thread.Sleep(pausa);
+            }
+        }
+
+        // Devolve true se o jogador repetiu a sequência toda corretamente
+        static bool ResponderRonda(int[] sequencia, int ronda)
+        {
+            LimparTeclado();
+            for (int i = 0; i < ronda; i++)
+            {
+                Desenhar(-1, ronda, $"A tua vez! ({i + 1}/{ronda})");
+                int escolha = LerSimbolo();
+
+                if (escolha < 0) // tempo esgotado
+                    return false;
+
+                Desenhar(escolha, ronda, $"A tua vez! ({i + 1}/{ronda})");
+                TocarNota(escolha, 200);
+
+                if (escolha != sequencia[i])
+                    return false;
+            }
             return true;
         }
 
