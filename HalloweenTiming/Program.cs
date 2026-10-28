@@ -238,7 +238,7 @@ namespace HalloweenTiming
             Console.WriteLine(SecretCode);
             Console.ResetColor();
             Console.WriteLine();
-            Console.WriteLine(" Corre para a porta!");
+            Console.WriteLine(" Guarde este código!");
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.WriteLine(" [qualquer tecla para sair]");
