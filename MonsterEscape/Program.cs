@@ -6,12 +6,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Prática
+namespace HallowennMINIGAMESescola
 {
-    internal class User
+    internal class MonsterEscape
     {
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
-        const string SecretCode = "7K3";   // código mostrado no ecrã de vitória (exatamente 3 caracteres)
 
         const int PlayerMoveMs = 110;      // intervalo entre passos do jogador
 
@@ -133,13 +132,81 @@ namespace Prática
         static int patrolIdx;      // próximo ponto da rota para onde o monstro vai
         static long wanderStart;   // instante em que o monstro perdeu o jogador de vista
 
+
         static void Main()
         {
-            if (SecretCode.Length != 3)
-                throw new InvalidOperationException("SecretCode tem de ter exatamente 3 caracteres.");
+            // ============ PALAVRA-PASSE ============
+            string passeword = "BPK";
+            bool verfpass = false;
+            bool verf1 = false;
+            bool verf2 = false;
+            bool verf3 = false;
 
+            const string code1 = "MDF";
+            const string code2 = "KFC";
+            const string code3 = "UVQ";
+
+            Random random = new Random();
+
+            // Gera a palavra-passe com os três códigos numa ordem aleatória
+            while (!verf1 || !verf2 || !verf3)
+            {
+                int id = random.Next(1, 4);
+
+                if (id == 1 && !verf1)
+                {
+                    passeword += code1;
+                    verf1 = true;
+                }
+                else if (id == 2 && !verf2)
+                {
+                    passeword += code2;
+                    verf2 = true;
+                }
+                else if (id == 3 && !verf3)
+                {
+                    passeword += code3;
+                    verf3 = true;
+                }
+            }
+
+            // Pede a palavra-passe antes de iniciar o jogo
+            do
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write(
+                    "Digite a senha para acessar o computador principal " +
+                    "(a senha começa com BPK e contém os outros três códigos): "
+                );
+
+                string input = Console.ReadLine() ?? "";
+                input = input.ToUpperInvariant();
+
+                if (input == passeword)
+                {
+                    verfpass = true;
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Senha incorreta, tente novamente!");
+                    Thread.Sleep(2000);
+                    Console.Clear();
+                }
+            }
+            while (!verfpass);
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Palavra-passe correta!");
+            Console.ResetColor();
+
+            Thread.Sleep(3000);
+            Console.Clear();
+
+            // ============ INÍCIO DO JOGO ============
             Console.OutputEncoding = Encoding.UTF8;
             TryResizeConsole();
+
             try { Console.CursorVisible = false; } catch { }
 
             ShowIntro();
@@ -150,8 +217,10 @@ namespace Prática
             Play();
 
             ShowEnding();
+
             try { Console.CursorVisible = true; } catch { }
         }
+
 
         static void TryResizeConsole()
         {
@@ -1278,14 +1347,44 @@ namespace Prática
             Console.WriteLine(" Destrancaste a porta e fugiste do monstro.");
             Console.WriteLine(" Capturas: " + captures);
             Console.WriteLine();
-            Console.Write(" O código é:  ");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(SecretCode);
-            Console.ResetColor();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.WriteLine(" Anota o código! [ENTER] para fechar o jogo");
-            Console.ResetColor();
+            Thread.Sleep(2000);
+            Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("==============================================");
+            Console.WriteLine("              A PORTA ABRIU, FUJA!");
+            Console.WriteLine("==============================================");
+
+            Console.Title = "ALARME";
+            Console.ForegroundColor = ConsoleColor.Red;
+
+            Task temporizador = Task.Run(async () =>
+            {
+                for (int i = 5; i > 0; i--)
+                {
+                    Console.WriteLine($"Tempo restante: {i}s");
+                    await Task.Delay(1000);
+                }
+            });
+
+            Stopwatch cronometro = Stopwatch.StartNew();
+
+            while (cronometro.ElapsedMilliseconds < 5000)
+            {
+                Console.Beep(350, 180);
+                Console.Beep(450, 180);
+                Console.Beep(550, 180);
+                Console.Beep(650, 180);
+
+                Console.Beep(550, 180);
+                Console.Beep(450, 180);
+            }
+
+            cronometro.Stop();
+
+            temporizador.Wait();
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("\nO TEMPO ACABOU.");
 
             while (Console.ReadKey(true).Key != ConsoleKey.Enter) { }
         }
