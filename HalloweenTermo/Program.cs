@@ -19,7 +19,25 @@ namespace HalloweenTermo
                 "OSSOS",
                 "MEDOS",
                 "CORVO",
-                "VELAS"
+                "VELAS",
+                "PAVOR",
+                "ZUMBI",
+                "RATOS",
+                "MORTO",
+                "LOBOS",
+                "MAGIA",
+                "GRITO",
+                "MÚMIA",
+                "TREVA",
+                "NOITE",
+                "PRETO",
+                "PURÃO",
+                "DIABO",
+                "RUÍNA",
+                "BICHO",
+                "CULTO",
+                "CORPO",
+                "ÓBITO"
             };
 
             Random random = new Random();
@@ -124,7 +142,7 @@ namespace HalloweenTermo
                 Console.WriteLine("\n================================");
                 Console.WriteLine("       PARABENS! GANHASTE!");
                 Console.WriteLine("================================");
-                Console.WriteLine("Codigo para o PC principal: 7392");
+                Console.WriteLine("Codigo para o PC principal: KFC");
             }
             else
             {
