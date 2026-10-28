@@ -15,11 +15,18 @@ namespace MonsterEscape
 
         // Monstro: o intervalo começa em MonsterBaseMs (MAIOR que o do jogador = mais lento)
         // e vai diminuindo MonsterRampPerSec milissegundos por cada segundo desde que acordou,
-        // até ao mínimo MonsterMinMs. Com 0.5 ms/s apanha o ritmo do jogador ao fim de ~100 s
+        // até ao mínimo MonsterMinMs. Com 0.2 ms/s apanha o ritmo do jogador ao fim de ~300 s
         // e passa a ser mais rápido do que ele a partir daí.
-        const int MonsterBaseMs = PlayerMoveMs + 60;   // 160 ms: sempre mais lento que o jogador à partida
+        const int MonsterBaseMs = PlayerMoveMs + 60;   // 150 ms: sempre mais lento que o jogador à partida
         const int MonsterMinMs = 80;
         const double MonsterRampPerSec = 0.2;
+
+        // Visão do monstro: 360º, bloqueada por paredes e portas fechadas.
+        // 12 apanha uma sala inteira (o refeitório, a maior, tem 11x7 = ~11.7 na diagonal).
+        const double MonsterSightRange = 12;
+        // Tempo que o jogador tem de ficar no armário para o monstro o perder de vista
+        // e voltar à rota de patrulha.
+        const int LoseSightMs = 5000;
 
         const int WakeGraceMs = 2500;      // tempo até o monstro começar a mexer depois das luzes voltarem
         const int CaughtPauseMs = 2000;    // pausa depois de seres apanhado
@@ -100,6 +107,12 @@ namespace MonsterEscape
         static readonly (int x, int y) CommTermPos = (26, 19);    //           ...usado no terminal das comunicações
         static readonly (int x, int y) NavTermPos = (55, 4);      // tarefa 3: antena (sequência de setas)
 
+        // Comportamento do monstro:
+        //   Patrol = segue a rota default por todas as salas (só persegue se te vir)
+        //   Chase  = viu-te: persegue-te pelo caminho mais curto, como se soubesse sempre onde estás
+        //   Wander = perdeu-te (escondeste-te num armário): anda ao acaso até desistir
+        enum MonsterMode { Patrol, Chase, Wander }
+
         // Estado
         static int px, py, mx, my, lastMx, lastMy;
         static int facX = 1, facY = 0;
@@ -113,6 +126,11 @@ namespace MonsterEscape
         static int reactorPct = -1;
         static int hudLen;
 
+        static MonsterMode monsterMode = MonsterMode.Patrol;
+        static readonly List<(int x, int y)> PatrolRoute = new List<(int x, int y)>();
+        static int patrolIdx;      // próximo ponto da rota para onde o monstro vai
+        static long wanderStart;   // instante em que o monstro perdeu o jogador de vista
+
         static void Main()
         {
             if (SecretCode.Length != 3)
@@ -124,6 +142,7 @@ namespace MonsterEscape
 
             ShowIntro();
             BuildMap();
+            BuildPatrolRoute();
 
             Console.Clear();
             Play();
@@ -156,6 +175,8 @@ namespace MonsterEscape
             px = StartPos.x; py = StartPos.y;
             mx = MonsterHome.x; my = MonsterHome.y;
             lastMx = mx; lastMy = my;
+            monsterMode = MonsterMode.Patrol;
+            patrolIdx = 0;
 
             DrawFrame();
             ResetVision();
@@ -202,6 +223,9 @@ namespace MonsterEscape
 
                 // --- monstro ---
                 now = sw.ElapsedMilliseconds;
+                if (monsterAlive && monsterAwake && now >= wakeStart)
+                    UpdateMonsterMode(now);   // viu-te? perdeu-te de vista? desistiu?
+
                 if (monsterAlive && monsterAwake && now >= nextMonster)
                 {
                     MoveMonster();
@@ -307,6 +331,8 @@ namespace MonsterEscape
                     hasFuse = false;
                     lightsOn = true;
                     monsterAwake = true;
+                    monsterMode = MonsterMode.Patrol;   // acorda e começa a patrulhar (só te persegue se te vir)
+                    patrolIdx = 0;
                     UpdateDoor();   // fica selada até as 3 tarefas estarem feitas
                     DrawAll();
                     wakeStart = now + WakeGraceMs;
@@ -349,6 +375,7 @@ namespace MonsterEscape
                     long dt = sw.ElapsedMilliseconds - t0;
                     nextMonster += dt;   // o tempo pára enquanto usas o terminal
                     wakeStart += dt;
+                    wanderStart += dt;
                     FlushKeys();
 
                     if (ok)
@@ -372,8 +399,10 @@ namespace MonsterEscape
             }
             else if (Map[px, py] == 'L' && hasLamp)
             {
+                // Se o monstro te estava a perseguir, UpdateMonsterMode escreve logo a seguir
+                // a mensagem de que te perdeu de vista.
                 WriteStatus(monsterAwake
-                    ? "Estás escondido no armário. O monstro perdeu-te de vista e vagueia ao acaso."
+                    ? "Estás escondido no armário. O monstro não te consegue apanhar aqui."
                     : "Estás dentro do armário.", ConsoleColor.Green);
             }
 
@@ -535,6 +564,8 @@ namespace MonsterEscape
             lightsOn = false;
             hasFuse = false;
             monsterAwake = false;
+            monsterMode = MonsterMode.Patrol;
+            patrolIdx = 0;
             commsHide = false;
             reactorHold = -1;
             reactorPct = -1;
@@ -547,34 +578,73 @@ namespace MonsterEscape
             FlushKeys();
         }
 
-        // O monstro persegue pelo caminho mais curto, ou vagueia se o jogador estiver escondido.
+        // ============================ MONSTRO (IA) ============================
+        // Chamado a cada ciclo do jogo: decide em que modo o monstro está.
+        static void UpdateMonsterMode(long now)
+        {
+            switch (monsterMode)
+            {
+                case MonsterMode.Patrol:
+                    if (MonsterSeesPlayer()) StartChase();
+                    break;
+
+                case MonsterMode.Chase:
+                    // Escondeste-te num armário: perde o rasto e começa a andar ao acaso.
+                    if (Map[px, py] == 'L') StartWander(now);
+                    break;
+
+                case MonsterMode.Wander:
+                    if (MonsterSeesPlayer()) StartChase();   // saíste do armário à vista dele
+                    else if (now - wanderStart >= LoseSightMs) StartPatrol();
+                    break;
+            }
+        }
+
+        // Visão a 360º: alcance limitado e paredes/portas fechadas bloqueiam.
+        // Quem está dentro de um armário não é visto.
+        static bool MonsterSeesPlayer()
+        {
+            if (Map[px, py] == 'L') return false;
+
+            int dx = px - mx, dy = py - my;
+            if (dx * dx + dy * dy > MonsterSightRange * MonsterSightRange) return false;
+
+            return HasLos(mx, my, px, py);
+        }
+
+        static void StartChase()
+        {
+            monsterMode = MonsterMode.Chase;
+            WriteStatus("O MONSTRO VIU-TE! Ele sabe sempre onde estás. Corre ou esconde-te num armário!", ConsoleColor.Red);
+        }
+
+        static void StartWander(long now)
+        {
+            monsterMode = MonsterMode.Wander;
+            wanderStart = now;
+            WriteStatus("Escondeste-te! O monstro perdeu-te e anda ao acaso. Fica " + LoseSightMs / 1000 + " s no armário.", ConsoleColor.Yellow);
+        }
+
+        static void StartPatrol()
+        {
+            monsterMode = MonsterMode.Patrol;   // retoma a rota no ponto para onde ia (patrolIdx)
+            WriteStatus("O monstro desistiu de te procurar e voltou à patrulha.", ConsoleColor.DarkYellow);
+        }
+
+        // Patrol: segue a rota. Chase: caminho mais curto até ao jogador.
+        // Wander (ou sem caminho): anda ao acaso.
+        // O monstro só anda no chão (e na porta da sala dele), por isso nunca entra num armário.
         static void MoveMonster()
         {
             int bx = mx, by = my;
-            bool hidden = Map[px, py] == 'L';
             bool moved = false;
 
-            if (!hidden)
-            {
-                var dist = Bfs(px, py);
-                int best = dist[mx, my];
-                if (best >= 0)
-                {
-                    foreach (var (dx, dy) in Dirs4)
-                    {
-                        int nx = mx + dx, ny = my + dy;
-                        if (!CanMonsterWalk(nx, ny)) continue;
-                        if (dist[nx, ny] >= 0 && dist[nx, ny] < best)
-                        {
-                            best = dist[nx, ny];
-                            bx = nx; by = ny;
-                            moved = true;
-                        }
-                    }
-                }
-            }
+            if (monsterMode == MonsterMode.Chase)
+                moved = StepToward(px, py, ref bx, ref by);
+            else if (monsterMode == MonsterMode.Patrol)
+                moved = StepAlongRoute(ref bx, ref by);
 
-            if (hidden || !moved)
+            if (!moved)
             {
                 var options = new List<(int x, int y)>();
                 foreach (var (dx, dy) in Dirs4)
@@ -597,6 +667,42 @@ namespace MonsterEscape
             mx = bx; my = by;
             DrawTile(ox, oy);
             DrawTile(mx, my);
+        }
+
+        // Um passo pelo caminho mais curto até (tx, ty). Devolve false se não houver caminho.
+        static bool StepToward(int tx, int ty, ref int bx, ref int by)
+        {
+            var dist = Bfs(tx, ty);
+            int best = dist[mx, my];
+            if (best < 0) return false;
+
+            bool moved = false;
+            foreach (var (dx, dy) in Dirs4)
+            {
+                int nx = mx + dx, ny = my + dy;
+                if (!CanMonsterWalk(nx, ny)) continue;
+                if (dist[nx, ny] >= 0 && dist[nx, ny] < best)
+                {
+                    best = dist[nx, ny];
+                    bx = nx; by = ny;
+                    moved = true;
+                }
+            }
+            return moved;
+        }
+
+        // Um passo em direção ao ponto atual da rota; ao chegar, passa ao seguinte (rota circular).
+        static bool StepAlongRoute(ref int bx, ref int by)
+        {
+            if (PatrolRoute.Count == 0) return false;
+
+            var target = PatrolRoute[patrolIdx];
+            if (mx == target.x && my == target.y)
+            {
+                patrolIdx = (patrolIdx + 1) % PatrolRoute.Count;
+                target = PatrolRoute[patrolIdx];
+            }
+            return StepToward(target.x, target.y, ref bx, ref by);
         }
 
         // O monstro anda no chão e atravessa a porta da própria sala ('D').
@@ -823,6 +929,60 @@ namespace MonsterEscape
             return dist;
         }
 
+        // Rota default do monstro: um ponto (o centro) em cada sala que ele consegue alcançar,
+        // ordenados pelo vizinho mais próximo a partir da casa dele. É calculada a partir do mapa,
+        // por isso adapta-se sozinha se salas ou corredores forem alterados.
+        // (A sala da saída fica de fora: está atrás da porta 'E', que o monstro não atravessa.)
+        static void BuildPatrolRoute()
+        {
+            PatrolRoute.Clear();
+
+            var reach = Bfs(MonsterHome.x, MonsterHome.y);
+            var pending = new List<(int x, int y)>();
+            for (int i = 0; i < Rooms.Length; i++)
+            {
+                var c = RoomCenter(i);
+                if (c.x >= 0 && reach[c.x, c.y] >= 0) pending.Add(c);
+            }
+
+            var cur = MonsterHome;
+            while (pending.Count > 0)
+            {
+                var d = Bfs(cur.x, cur.y);
+                int best = 0;
+                for (int i = 1; i < pending.Count; i++)
+                    if (d[pending[i].x, pending[i].y] < d[pending[best].x, pending[best].y]) best = i;
+
+                cur = pending[best];
+                PatrolRoute.Add(cur);
+                pending.RemoveAt(best);
+            }
+
+            patrolIdx = 0;
+        }
+
+        // Centro da sala; se estiver ocupado (armário, por exemplo) usa o chão livre mais próximo.
+        // Devolve (-1, -1) se a sala não tiver nenhum chão onde o monstro possa andar.
+        static (int x, int y) RoomCenter(int roomIdx)
+        {
+            var r = Rooms[roomIdx];
+            int cx = (r.x1 + r.x2) / 2, cy = (r.y1 + r.y2) / 2;
+            if (CanMonsterWalk(cx, cy)) return (cx, cy);
+
+            (int x, int y) best = (-1, -1);
+            int bestD = int.MaxValue;
+            for (int x = r.x1; x <= r.x2; x++)
+            {
+                for (int y = r.y1; y <= r.y2; y++)
+                {
+                    if (!CanMonsterWalk(x, y)) continue;
+                    int d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+                    if (d < bestD) { bestD = d; best = (x, y); }
+                }
+            }
+            return best;
+        }
+
         // ============================ INTERFACE ============================
         static void ShowIntro()
         {
@@ -847,6 +1007,8 @@ namespace MonsterEscape
             Console.WriteLine(" - Só vês o que está no teu campo de visão (vira-te para olhar).");
             Console.WriteLine(" - Sem lanterna não encontras armários, fusível nem medalhão.");
             Console.WriteLine(" - Os armários escondem-te. Nas comunicações não vês o monstro.");
+            Console.WriteLine(" - O monstro patrulha a nave e vê a 360º (alcance de uma sala).");
+            Console.WriteLine("   Se te vir, persegue-te sempre. Esconde-te num armário " + LoseSightMs / 1000 + " s para o despistar.");
             Console.WriteLine(" - O monstro começa mais lento que tu, mas acelera com o tempo.");
             Console.WriteLine(" - Se ele te apanhar, acordas no armazém e tens de refazer o");
             Console.WriteLine("   fusível (as tarefas já feitas mantêm-se).");
