@@ -13,19 +13,19 @@ namespace Prática
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
         const string SecretCode = "7K3";   // código mostrado no ecrã de vitória (exatamente 3 caracteres)
 
-        const int PlayerMoveMs = 90;      // intervalo entre passos do jogador
+        const int PlayerMoveMs = 110;      // intervalo entre passos do jogador
 
         // Monstro: o intervalo começa em MonsterBaseMs (MAIOR que o do jogador = mais lento)
         // e vai diminuindo MonsterRampPerSec milissegundos por cada segundo desde que acordou,
         // até ao mínimo MonsterMinMs. Com 0.2 ms/s apanha o ritmo do jogador ao fim de ~300 s
         // e passa a ser mais rápido do que ele a partir daí.
-        const int MonsterBaseMs = PlayerMoveMs + 60;   // 150 ms: sempre mais lento que o jogador à partida
-        const int MonsterMinMs = 80;
+        const int MonsterBaseMs = PlayerMoveMs + 50;   // 150 ms: sempre mais lento que o jogador à partida
+        const int MonsterMinMs = 90;
         const double MonsterRampPerSec = 0.2;
 
         // Visão do monstro: 360º, bloqueada por paredes e portas fechadas.
         // 12 apanha uma sala inteira (o refeitório, a maior, tem 11x7 = ~11.7 na diagonal).
-        const double MonsterSightRange = 12;
+        const double MonsterSightRange = 10;
         // Tempo que o jogador tem de ficar no armário para o monstro o perder de vista
         // e voltar à rota de patrulha.
         const int LoseSightMs = 5000;
@@ -34,14 +34,14 @@ namespace Prática
         const int CaughtPauseMs = 2000;    // pausa depois de seres apanhado
 
         // Tarefas (desbloqueiam a porta da sala do monstro)
-        const int ReactorHoldMs = 5000;    // tempo parado na consola do reator
-        const int SequenceLength = 4;      // tamanho da sequência de setas da antena
+        const int ReactorHoldMs = 10000;    // tempo parado na consola do reator
+        const int SequenceLength = 10;      // tamanho da sequência de setas da antena
         const int SequenceShowMs = 2500;   // tempo que a sequência fica visível
 
         // Campo de visão
         const int SightCircleDark = 2;     // raio de visão sem lanterna
-        const int SightCircleLamp = 2;     // raio à volta do jogador com lanterna
-        const int SightCircleLit = 3;      // raio com as luzes ligadas
+        const int SightCircleLamp = 3;     // raio à volta do jogador com lanterna
+        const int SightCircleLit = 5;      // raio com as luzes ligadas
         const double ConeRange = 9;        // alcance do cone da lanterna
         const double ConeHalfAngleDeg = 45;// meio-ângulo do cone da lanterna (45 = cone de 90º)
 
