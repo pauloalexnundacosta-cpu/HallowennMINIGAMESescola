@@ -10,7 +10,7 @@ namespace HalloweenMaze
     internal static class Program
     {
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
-        const string SecretCode = "7K3";                       // exatamente 3 caracteres
+        const string SecretCode = "7K3";                       // exatamente 3 caracteres!!!!!!!!!!!!!!
         const int CellsW = 16;                                 // largura do labirinto (em células)
         const int CellsH = 8;                                  // altura do labirinto (em células)
         const int ExtraLoops = 14;                             // paredes removidas para criar atalhos (mais = mais fácil fugir)
