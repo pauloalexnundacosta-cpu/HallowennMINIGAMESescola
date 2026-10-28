@@ -36,6 +36,8 @@ namespace HalloweenMaze
 
         static void Main()
         {
+
+           
             if (SecretCode.Length != 3)
                 throw new InvalidOperationException("SecretCode tem de ter exatamente 3 caracteres.");
 
@@ -43,6 +45,63 @@ namespace HalloweenMaze
             try { Console.CursorVisible = false; } catch { /* consola sem suporte */ }
 
             ShowIntro();
+            Console.CursorVisible = false;
+            Console.Title = "LOAD - Carregando...";
+
+            MostrarBanner();
+            CarregarBarraDeProgresso();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("\n\n      Carregamento concluído com sucesso!");
+            Console.ResetColor();
+
+            Console.CursorVisible = true;
+        }
+
+        static void MostrarBanner()
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(@"
+ ___       ________  ________  ________  ___  ________   ________     
+|\  \     |\   __  \|\   __  \|\   ___ \|\  \|\   ___  \|\   ____\    
+\ \  \    \ \  \|\  \ \  \|\  \ \  \_|\ \ \  \ \  \\ \  \ \  \___|    
+ \ \  \    \ \  \\\  \ \   __  \ \  \ \\ \ \  \ \  \\ \  \ \  \  ___  
+  \ \  \____\ \  \\\  \ \  \ \  \ \  \_\\ \ \  \ \  \\ \  \ \  \|\  \ 
+   \ \_______\ \_______\ \__\ \__\ \_______\ \__\ \__\\ \__\ \_______\
+    \|_______|\|_______|\|__|\|__|\|_______|\|__|\|__| \|__|\|_______|
+");
+            Console.ResetColor();
+        }
+
+        static void CarregarBarraDeProgresso()
+        {
+            // Cada posição representa um "degrau" da barra (0 a 10)
+            string[] barras =
+            {
+                "▒▒▒▒▒▒▒▒▒▒",
+                "█▒▒▒▒▒▒▒▒▒",
+                "██▒▒▒▒▒▒▒▒",
+                "███▒▒▒▒▒▒▒",
+                "████▒▒▒▒▒▒",
+                "█████▒▒▒▒▒",
+                "██████▒▒▒▒",
+                "███████▒▒▒",
+                "████████▒▒",
+                "█████████▒",
+                "██████████"
+            };
+
+            Console.WriteLine();
+
+            for (int i = 0; i < barras.Length; i++)
+            {
+                int percentual = i * 10;
+
+                // \r retorna o cursor para o início da linha, sobrescrevendo o conteúdo
+                Console.Write($"\r      Carregando [{barras[i]}] {percentual,3}%");
+
+                Thread.Sleep(300); // Simula o tempo de carregamento
+            }
 
             GenerateMaze();
             PlaceLetters();
