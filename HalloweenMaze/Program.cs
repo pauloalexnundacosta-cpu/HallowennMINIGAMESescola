@@ -10,13 +10,13 @@ namespace HalloweenMaze
     internal static class Program
     {
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
-        const string SecretCode = "7K3";                       // exatamente 3 caracteres!!!!!!!!!!!!!!
-        const int CellsW = 16;                                 // largura do labirinto (em células)
-        const int CellsH = 8;                                  // altura do labirinto (em células)
-        const int ExtraLoops = 14;                             // paredes removidas para criar atalhos (mais = mais fácil fugir)
+        const string SecretCode = "UVQ";                       // exatamente 3 caracteres!!!!!!!!!!!!!!
+        const int CellsW = 20;                                 // largura do labirinto (em células)
+        const int CellsH = 10;                                  // altura do labirinto (em células)
+        const int ExtraLoops = 13;                             // paredes removidas para criar atalhos (mais = mais fácil fugir)
         const int PlayerMoveMs = 110;                          // intervalo mínimo entre passos do jogador
-        static readonly int[] MonsterMoveMs = { 300, 250, 200 }; // intervalo entre passos do monstro (0, 1, 2 letras apanhadas)
-        const int GraceMs = 3000;                              // tempo até o monstro acordar (início e após captura)
+        static readonly int[] MonsterMoveMs = { 200, 150, 125 }; // intervalo entre passos do monstro (0, 1, 2 letras apanhadas)
+        const int GraceMs = 2000;                              // tempo até o monstro acordar (início e após captura)
         const int CaughtPauseMs = 1500;                        // pausa depois de seres apanhado
         // ==================================================================
 
