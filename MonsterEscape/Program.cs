@@ -35,8 +35,8 @@ namespace Prática
 
         // Tarefas (desbloqueiam a porta da sala do monstro)
         const int ReactorHoldMs = 10000;    // tempo parado na consola do reator
-        const int SequenceLength = 10;      // tamanho da sequência de setas da antena
-        const int SequenceShowMs = 2500;   // tempo que a sequência fica visível
+        const int SequenceLength = 7;      // tamanho da sequência de setas da antena
+        const int SequenceShowMs = 3000;   // tempo que a sequência fica visível
 
         // Campo de visão
         const int SightCircleDark = 2;     // raio de visão sem lanterna
