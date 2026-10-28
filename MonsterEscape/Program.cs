@@ -11,45 +11,62 @@ namespace MonsterEscape
         // ============ CONFIGURAÇÃO (ajusta aqui a dificuldade) ============
         const string SecretCode = "7K3";   // código mostrado no ecrã de vitória (exatamente 3 caracteres)
 
-        const int PlayerMoveMs = 110;      // intervalo entre passos do jogador
+        const int PlayerMoveMs = 90;      // intervalo entre passos do jogador
 
-        // Monstro: o intervalo começa em MonsterBaseMs (MENOR que o do jogador = mais rápido)
+        // Monstro: o intervalo começa em MonsterBaseMs (MAIOR que o do jogador = mais lento)
         // e vai diminuindo MonsterRampPerSec milissegundos por cada segundo desde que acordou,
-        // até ao mínimo MonsterMinMs.
-        const int MonsterBaseMs = 90;
-        const int MonsterMinMs = 40;
-        const double MonsterRampPerSec = 0.5;
+        // até ao mínimo MonsterMinMs. Com 0.5 ms/s apanha o ritmo do jogador ao fim de ~100 s
+        // e passa a ser mais rápido do que ele a partir daí.
+        const int MonsterBaseMs = PlayerMoveMs + 60;   // 160 ms: sempre mais lento que o jogador à partida
+        const int MonsterMinMs = 80;
+        const double MonsterRampPerSec = 0.2;
 
         const int WakeGraceMs = 2500;      // tempo até o monstro começar a mexer depois das luzes voltarem
         const int CaughtPauseMs = 2000;    // pausa depois de seres apanhado
+
+        // Tarefas (desbloqueiam a porta da sala do monstro)
+        const int ReactorHoldMs = 5000;    // tempo parado na consola do reator
+        const int SequenceLength = 4;      // tamanho da sequência de setas da antena
+        const int SequenceShowMs = 2500;   // tempo que a sequência fica visível
 
         // Campo de visão
         const int SightCircleDark = 2;     // raio de visão sem lanterna
         const int SightCircleLamp = 2;     // raio à volta do jogador com lanterna
         const int SightCircleLit = 3;      // raio com as luzes ligadas
         const double ConeRange = 9;        // alcance do cone da lanterna
-        const double ConeRangeLit = 13;    // alcance do cone com as luzes ligadas
-        const double ConeHalfAngleDeg = 45;// meio-ângulo do cone
+        const double ConeHalfAngleDeg = 45;// meio-ângulo do cone da lanterna (45 = cone de 90º)
+
+        // Com as luzes ligadas: 180º à frente e alcance para apanhar uma sala inteira.
+        // A maior sala (refeitório, 11x7) tem ~11.7 de ponta a ponta, por isso 14 dá margem.
+        const double ConeRangeLit = 14;
+        const double ConeHalfAngleLitDeg = 90; // 90 de meio-ângulo = 180º no total
+
         const bool RememberMap = false;    // true = as paredes/salas já vistas ficam desenhadas (sem itens nem monstro)
         // ==================================================================
 
-        const int Cols = 47;
+        const int Cols = 59;
         const int Rows = 21;
         const int MazeTop = 4;
         const int StatusRow = MazeTop + Rows + 1;
 
-        static readonly double ConeCos = Math.Cos(ConeHalfAngleDeg * Math.PI / 180.0);
+        // O epsilon evita que o erro de vírgula flutuante deixe de fora as células exatamente
+        // ao lado do jogador (cos(90º) dá ~6e-17 e não 0, o que cortava os 180º).
+        static double ConeCosFor(double halfAngleDeg) => Math.Cos(halfAngleDeg * Math.PI / 180.0) - 1e-9;
+        static readonly double ConeCos = ConeCosFor(ConeHalfAngleDeg);
+        static readonly double ConeCosLit = ConeCosFor(ConeHalfAngleLitDeg);
 
         static readonly Random Rng = new Random();
         static readonly char[,] Map = new char[Cols, Rows];   // '#' parede, ' ' chão, 'L' armário, 'D' porta do monstro, 'E' porta da saída
         static readonly Dictionary<(int, int), string> Glyph = new Dictionary<(int, int), string>();
         static readonly (int dx, int dy)[] Dirs4 = { (0, -1), (1, 0), (0, 1), (-1, 0) };
+        static readonly string[] SeqNames = { "^", ">", "v", "<" };
 
         static bool[,] Vis = new bool[Cols, Rows];            // o que o jogador vê agora
         static readonly bool[,] Seen = new bool[Cols, Rows];  // o que já viu alguma vez
 
         // Salas: nome (HUD), etiqueta (mapa), x1, y1, x2, y2
-        // O mapa é uma árvore: só existe UM caminho entre quaisquer duas salas.
+        // Ciclo: casa de banho -> refeitório -> comunicações -> luzes -> casa de banho.
+        // Cadeia de tarefas (becos): refeitório -> Mad Bay -> enfermaria -> navegação -> reator.
         static readonly (string name, string label, int x1, int y1, int x2, int y2)[] Rooms =
         {
             ("Casa de banho",   "BANHEIRO",        2, 10,  9, 14),
@@ -60,6 +77,9 @@ namespace MonsterEscape
             ("Sala das luzes",  "LUZES",           2, 17,  9, 19),
             ("Sala do monstro", "SALA DO MONSTRO",36, 16, 44, 19),
             ("Saída",           "SAIDA",          37,  8, 44, 12),
+            ("Enfermaria",      "ENFERMARIA",     31,  2, 39,  6),
+            ("Navegação",       "NAVEGACAO",      48,  2, 57,  6),
+            ("Reator",          "REATOR",         48, 10, 57, 14),
         };
         const int CommsIdx = 4;
 
@@ -74,14 +94,24 @@ namespace MonsterEscape
         static readonly (int x, int y) DoorMonster = (35, 18);
         static readonly (int x, int y) DoorExit = (36, 10);
 
+        // Tarefas
+        static readonly (int x, int y) ReactorPos = (52, 12);     // tarefa 1: consola do reator (ficar parado)
+        static readonly (int x, int y) CardPos = (38, 5);         // tarefa 2: cartão na enfermaria...
+        static readonly (int x, int y) CommTermPos = (26, 19);    //           ...usado no terminal das comunicações
+        static readonly (int x, int y) NavTermPos = (55, 4);      // tarefa 3: antena (sequência de setas)
+
         // Estado
         static int px, py, mx, my, lastMx, lastMy;
         static int facX = 1, facY = 0;
-        static bool hasLamp, hasFuse, lightsOn, hasMedal, hasKey;
+        static bool hasLamp, hasFuse, lightsOn, hasMedal, hasKey, hasCard;
+        static bool questReactor, questCard, questNav;
         static bool monsterAwake, monsterAlive = true, escaped, commsHide;
         static int captures;
         static Stopwatch sw;
         static long nextMonster, wakeStart;
+        static long reactorHold = -1;
+        static int reactorPct = -1;
+        static int hudLen;
 
         static void Main()
         {
@@ -89,6 +119,7 @@ namespace MonsterEscape
                 throw new InvalidOperationException("SecretCode tem de ter exatamente 3 caracteres.");
 
             Console.OutputEncoding = Encoding.UTF8;
+            TryResizeConsole();
             try { Console.CursorVisible = false; } catch { }
 
             ShowIntro();
@@ -101,7 +132,25 @@ namespace MonsterEscape
             try { Console.CursorVisible = true; } catch { }
         }
 
+        static void TryResizeConsole()
+        {
+            try
+            {
+                int w = 2 * Cols + 2, h = StatusRow + 3;
+                if (Console.WindowWidth >= w && Console.WindowHeight >= h) return;
+
+                Console.SetBufferSize(Math.Max(Console.BufferWidth, w), Math.Max(Console.BufferHeight, h));
+                Console.SetWindowSize(Math.Max(Console.WindowWidth, w), Math.Max(Console.WindowHeight, h));
+            }
+            catch { /* consola sem suporte: o aviso da introdução trata disto */ }
+        }
+
         // ============================== JOGO ==============================
+        static int QuestsDone()
+        {
+            return (questReactor ? 1 : 0) + (questCard ? 1 : 0) + (questNav ? 1 : 0);
+        }
+
         static void Play()
         {
             px = StartPos.x; py = StartPos.y;
@@ -148,7 +197,11 @@ namespace MonsterEscape
                     }
                 }
 
+                // --- tarefa do reator (ficar parado) ---
+                UpdateReactor(sw.ElapsedMilliseconds);
+
                 // --- monstro ---
+                now = sw.ElapsedMilliseconds;
                 if (monsterAlive && monsterAwake && now >= nextMonster)
                 {
                     MoveMonster();
@@ -187,7 +240,10 @@ namespace MonsterEscape
 
             if (t == 'D')
             {
-                WriteStatus("A porta da sala do monstro não abre. Sem luz, não vais entrar ali.", ConsoleColor.Red);
+                if (!lightsOn)
+                    WriteStatus("A porta da sala do monstro não abre. Sem luz, não vais entrar ali.", ConsoleColor.Red);
+                else
+                    WriteStatus("A porta da sala do monstro está selada! Faz as tarefas (" + QuestsDone() + "/3) para a destrancar.", ConsoleColor.Red);
                 return false;
             }
 
@@ -198,8 +254,8 @@ namespace MonsterEscape
                 return false;
             }
 
-            // Sem lanterna não se encontram armários, fusível nem medalhão.
-            if (!hasLamp && (t == 'L' || IsFuseVisible(nx, ny) || IsMedalVisible(nx, ny)))
+            // Sem lanterna não se encontram armários, fusível, cartão nem medalhão.
+            if (!hasLamp && (t == 'L' || IsFuseVisible(nx, ny) || IsCardVisible(nx, ny) || IsMedalVisible(nx, ny)))
             {
                 WriteStatus("Está muito escuro aqui... não consigo ver nada. Preciso de uma luz.", ConsoleColor.DarkYellow);
                 return false;
@@ -234,6 +290,11 @@ namespace MonsterEscape
                 hasFuse = true;
                 WriteStatus("Encontraste o fusível! Leva-o para a sala das luzes.", ConsoleColor.Magenta);
             }
+            else if (IsCardVisible(px, py) && hasLamp)
+            {
+                hasCard = true;
+                WriteStatus("Cartão de acesso! Leva-o ao terminal da sala de comunicações.", ConsoleColor.Cyan);
+            }
             else if (IsMedalVisible(px, py) && hasLamp)
             {
                 hasMedal = true;
@@ -246,16 +307,68 @@ namespace MonsterEscape
                     hasFuse = false;
                     lightsOn = true;
                     monsterAwake = true;
-                    Map[DoorMonster.x, DoorMonster.y] = ' ';
+                    UpdateDoor();   // fica selada até as 3 tarefas estarem feitas
                     DrawAll();
                     wakeStart = now + WakeGraceMs;
                     nextMonster = wakeStart;
-                    WriteStatus("A LUZ VOLTOU! Ouves a porta do monstro a abrir... ele acordou!", ConsoleColor.Red);
+                    WriteStatus(QuestsDone() >= 3
+                        ? "A LUZ VOLTOU! Ele acordou e saiu do esconderijo! A porta dele continua destrancada."
+                        : "A LUZ VOLTOU! Ele acordou e saiu do esconderijo! A porta selou-se: faz as 3 tarefas.",
+                        ConsoleColor.Red);
                 }
                 else if (!lightsOn)
                 {
                     WriteStatus("A caixa de luzes está sem fusível.", ConsoleColor.Gray);
                 }
+            }
+            else if (px == CommTermPos.x && py == CommTermPos.y)
+            {
+                if (!lightsOn)
+                    WriteStatus("O terminal das comunicações está sem energia.", ConsoleColor.Gray);
+                else if (questCard)
+                    WriteStatus("O terminal já validou o teu cartão.", ConsoleColor.Gray);
+                else if (hasCard)
+                {
+                    hasCard = false;
+                    questCard = true;
+                    CompleteQuest("Cartão validado no terminal!");
+                }
+                else
+                    WriteStatus("Terminal bloqueado: precisa de um cartão de acesso (enfermaria).", ConsoleColor.Yellow);
+            }
+            else if (px == NavTermPos.x && py == NavTermPos.y)
+            {
+                if (!lightsOn)
+                    WriteStatus("O terminal de navegação está sem energia.", ConsoleColor.Gray);
+                else if (questNav)
+                    WriteStatus("A antena já está alinhada.", ConsoleColor.Gray);
+                else
+                {
+                    long t0 = sw.ElapsedMilliseconds;
+                    bool ok = PlaySequenceGame();
+                    long dt = sw.ElapsedMilliseconds - t0;
+                    nextMonster += dt;   // o tempo pára enquanto usas o terminal
+                    wakeStart += dt;
+                    FlushKeys();
+
+                    if (ok)
+                    {
+                        questNav = true;
+                        CompleteQuest("Antena alinhada!");
+                    }
+                    else
+                    {
+                        WriteStatus("Abandonaste o terminal. Volta quando estiveres pronto.", ConsoleColor.Gray);
+                    }
+                }
+            }
+            else if (px == ReactorPos.x && py == ReactorPos.y)
+            {
+                if (!lightsOn)
+                    WriteStatus("O reator está sem energia.", ConsoleColor.Gray);
+                else if (questReactor)
+                    WriteStatus("O reator já está estável.", ConsoleColor.Gray);
+                // se houver trabalho a fazer, UpdateReactor mostra o progresso
             }
             else if (Map[px, py] == 'L' && hasLamp)
             {
@@ -266,6 +379,132 @@ namespace MonsterEscape
 
             UpdateVision();
             DrawHud();
+        }
+
+        // Tarefa 1: ficar parado na consola do reator até a barra encher.
+        static void UpdateReactor(long now)
+        {
+            if (questReactor) return;
+
+            bool on = lightsOn && px == ReactorPos.x && py == ReactorPos.y;
+            if (!on)
+            {
+                if (reactorHold >= 0)
+                {
+                    reactorHold = -1;
+                    reactorPct = -1;
+                    WriteStatus("Reator interrompido! Tens de ficar parado na consola.", ConsoleColor.Red);
+                }
+                return;
+            }
+
+            if (reactorHold < 0) { reactorHold = now; reactorPct = -1; }
+
+            int pct = (int)Math.Min(100, (now - reactorHold) * 100 / ReactorHoldMs);
+            int step = pct / 10 * 10;
+            if (step != reactorPct)
+            {
+                reactorPct = step;
+                int filled = step / 10;
+                WriteStatus("A estabilizar o reator... [" + new string('#', filled) + new string('.', 10 - filled) + "] " + step + "%  (não saias da consola!)",
+                            ConsoleColor.Yellow);
+            }
+
+            if (pct >= 100)
+            {
+                questReactor = true;
+                reactorHold = -1;
+                reactorPct = -1;
+                CompleteQuest("Reator estabilizado!");
+            }
+        }
+
+        // Tarefa 3: repetir uma sequência de setas. O jogo fica parado durante o minijogo.
+        static int ArrowIndex(ConsoleKey k)
+        {
+            switch (k)
+            {
+                case ConsoleKey.UpArrow:
+                case ConsoleKey.W: return 0;
+                case ConsoleKey.RightArrow:
+                case ConsoleKey.D: return 1;
+                case ConsoleKey.DownArrow:
+                case ConsoleKey.S: return 2;
+                case ConsoleKey.LeftArrow:
+                case ConsoleKey.A: return 3;
+                default: return -1;
+            }
+        }
+
+        static string SeqText(int[] seq, int count)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < count; i++) sb.Append(SeqNames[seq[i]]).Append(' ');
+            return sb.ToString();
+        }
+
+        static bool PlaySequenceGame()
+        {
+            while (true)
+            {
+                var seq = new int[SequenceLength];
+                for (int i = 0; i < seq.Length; i++) seq[i] = Rng.Next(4);
+
+                WriteStatus("ANTENA (o tempo pára): memoriza  " + SeqText(seq, seq.Length), ConsoleColor.Yellow);
+                Thread.Sleep(SequenceShowMs);
+                FlushKeys();
+
+                int ok = 0;
+                bool failed = false;
+                WriteStatus("Repete com as setas (ESC sai):  ", ConsoleColor.Gray);
+
+                while (ok < seq.Length)
+                {
+                    var k = Console.ReadKey(true).Key;
+                    if (k == ConsoleKey.Escape) return false;
+
+                    int idx = ArrowIndex(k);
+                    if (idx < 0) continue;
+
+                    if (idx == seq[ok])
+                    {
+                        ok++;
+                        WriteStatus("Repete com as setas (ESC sai):  " + SeqText(seq, ok), ConsoleColor.Green);
+                    }
+                    else
+                    {
+                        WriteStatus("Sequência errada! Vai aparecer outra...", ConsoleColor.Red);
+                        Thread.Sleep(1000);
+                        failed = true;
+                        break;
+                    }
+                }
+
+                if (!failed) return true;
+            }
+        }
+
+        static void CompleteQuest(string msg)
+        {
+            int n = QuestsDone();
+            if (n >= 3)
+            {
+                UpdateDoor();
+                WriteStatus(msg + " Última tarefa! A porta da sala do monstro destrancou!", ConsoleColor.Green);
+            }
+            else
+            {
+                WriteStatus(msg + " Tarefas: " + n + "/3.", ConsoleColor.Green);
+            }
+            DrawHud();
+        }
+
+        // A porta só abre para o jogador com as luzes ligadas E as 3 tarefas feitas.
+        // (O monstro atravessa-a sempre: é a casa dele.)
+        static void UpdateDoor()
+        {
+            Map[DoorMonster.x, DoorMonster.y] = (lightsOn && QuestsDone() >= 3) ? ' ' : 'D';
+            DrawTile(DoorMonster.x, DoorMonster.y);
         }
 
         static void KillMonster()
@@ -288,6 +527,7 @@ namespace MonsterEscape
             Thread.Sleep(CaughtPauseMs);
 
             // Volta para o armazém, as luzes apagam-se e o monstro adormece outra vez.
+            // As tarefas já concluídas mantêm-se.
             px = RespawnPos.x; py = RespawnPos.y;
             mx = MonsterHome.x; my = MonsterHome.y;
             lastMx = mx; lastMy = my;
@@ -296,7 +536,9 @@ namespace MonsterEscape
             hasFuse = false;
             monsterAwake = false;
             commsHide = false;
-            Map[DoorMonster.x, DoorMonster.y] = 'D';
+            reactorHold = -1;
+            reactorPct = -1;
+            UpdateDoor();
 
             ResetVision();
             DrawAll();
@@ -357,9 +599,10 @@ namespace MonsterEscape
             DrawTile(mx, my);
         }
 
+        // O monstro anda no chão e atravessa a porta da própria sala ('D').
         static bool CanMonsterWalk(int x, int y)
         {
-            return x >= 0 && y >= 0 && x < Cols && y < Rows && Map[x, y] == ' ';
+            return x >= 0 && y >= 0 && x < Cols && y < Rows && (Map[x, y] == ' ' || Map[x, y] == 'D');
         }
 
         static (int, int) DirFor(ConsoleKey k)
@@ -381,6 +624,12 @@ namespace MonsterEscape
         static bool IsFuseVisible(int x, int y)
         {
             return !hasFuse && !lightsOn && x == FusePos.x && y == FusePos.y;
+        }
+
+        // O cartão só aparece depois de as luzes voltarem.
+        static bool IsCardVisible(int x, int y)
+        {
+            return lightsOn && !hasCard && !questCard && x == CardPos.x && y == CardPos.y;
         }
 
         static bool IsMedalVisible(int x, int y)
@@ -440,6 +689,7 @@ namespace MonsterEscape
 
             int circle = lightsOn ? SightCircleLit : (hasLamp ? SightCircleLamp : SightCircleDark);
             double range = !hasLamp ? 0 : (lightsOn ? ConeRangeLit : ConeRange);
+            double coneCos = lightsOn ? ConeCosLit : ConeCos;
             int reach = (int)Math.Ceiling(Math.Max(circle, range));
 
             for (int dy = -reach; dy <= reach; dy++)
@@ -459,7 +709,7 @@ namespace MonsterEscape
                         if (dist <= range)
                         {
                             double dot = (dx * facX + dy * facY) / dist;
-                            inCone = dot >= ConeCos;
+                            inCone = dot >= coneCos;
                         }
                     }
 
@@ -525,7 +775,7 @@ namespace MonsterEscape
                     Glyph[(r.x1 + i, r.y1)] = t.Substring(i * 2, 2);
             }
 
-            // Corredores estreitos (1 de largura). 7 ligações para 8 salas = só um caminho para cada sala.
+            // Corredores estreitos (1 de largura).
             Carve(5, 7, 5, 9);       // armazém        <-> casa de banho
             Carve(5, 15, 5, 16);     // casa de banho  <-> sala das luzes
             Carve(10, 12, 16, 12);   // casa de banho  <-> refeitório
@@ -533,13 +783,19 @@ namespace MonsterEscape
             Carve(22, 15, 22, 15);   // refeitório     <-> comunicações
             Carve(28, 10, 35, 10);   // refeitório     <-> saída
             Carve(28, 18, 34, 18);   // comunicações   <-> sala do monstro
+            Carve(10, 17, 16, 17);   // sala das luzes <-> comunicações (2.ª entrada de ambas)
+            Carve(28, 3, 30, 3);     // Mad Bay        <-> enfermaria
+            Carve(40, 3, 47, 3);     // enfermaria     <-> navegação
+            Carve(52, 7, 52, 9);     // navegação      <-> reator
 
             Map[DoorExit.x, DoorExit.y] = 'E';
             Map[DoorMonster.x, DoorMonster.y] = 'D';
 
-            // Armários (Mad Bay e sala das luzes)
+            // Armários: Mad Bay, sala das luzes, enfermaria e reator
             Map[26, 5] = 'L';
             Map[9, 19] = 'L';
+            Map[32, 5] = 'L';
+            Map[57, 14] = 'L';
         }
 
         static int[,] Bfs(int sx, int sy)
@@ -577,25 +833,23 @@ namespace MonsterEscape
             Console.WriteLine("==============================================");
             Console.ResetColor();
             Console.WriteLine();
-            Console.WriteLine(" Acordas na casa de banho de uma nave às escuras.");
-            Console.WriteLine(" Um monstro dorme na sala dele, com a chave da");
-            Console.WriteLine(" saída pendurada ao pescoço.");
+            Console.WriteLine(" Acordas numa nave às escuras. O monstro dorme na sala dele,");
+            Console.WriteLine(" com a chave da saída pendurada ao pescoço.");
             Console.WriteLine();
             Console.WriteLine(" 1. Apanha a lanterna no refeitório.");
-            Console.WriteLine(" 2. Encontra o fusível e leva-o à sala das luzes.");
-            Console.WriteLine("    (as luzes voltam, mas o monstro ACORDA)");
-            Console.WriteLine(" 3. Apanha o medalhão da cruz na sala do monstro e");
-            Console.WriteLine("    toca-lhe com ele para ficares com a chave.");
-            Console.WriteLine(" 4. Vai à sala da saída, abre a porta e foge.");
+            Console.WriteLine(" 2. Leva o fusível à sala das luzes. As luzes voltam e o");
+            Console.WriteLine("    monstro ACORDA e sai do esconderijo.");
+            Console.WriteLine(" 3. A porta dele fica selada: faz as 3 tarefas (reator,");
+            Console.WriteLine("    cartão da enfermaria e antena de navegação).");
+            Console.WriteLine(" 4. Apanha o medalhão e toca no monstro para ficares com a chave.");
+            Console.WriteLine(" 5. Vai à sala da saída, abre a porta e foge.");
             Console.WriteLine();
-            Console.WriteLine(" - Só vês o que está no teu campo de visão. A lanterna");
-            Console.WriteLine("   ilumina em frente: vira-te para onde queres olhar.");
+            Console.WriteLine(" - Só vês o que está no teu campo de visão (vira-te para olhar).");
             Console.WriteLine(" - Sem lanterna não encontras armários, fusível nem medalhão.");
-            Console.WriteLine(" - Os armários (Mad Bay e luzes) escondem-te do monstro.");
-            Console.WriteLine(" - Nas comunicações não vês onde o monstro está.");
-            Console.WriteLine(" - O monstro é mais rápido que tu e ainda acelera com o tempo.");
-            Console.WriteLine(" - Se ele te apanhar, acordas no armazém, as luzes");
-            Console.WriteLine("   apagam-se e tens de refazer o fusível.");
+            Console.WriteLine(" - Os armários escondem-te. Nas comunicações não vês o monstro.");
+            Console.WriteLine(" - O monstro começa mais lento que tu, mas acelera com o tempo.");
+            Console.WriteLine(" - Se ele te apanhar, acordas no armazém e tens de refazer o");
+            Console.WriteLine("   fusível (as tarefas já feitas mantêm-se).");
             Console.WriteLine();
             Console.WriteLine(" Move-te com as SETAS ou WASD.");
             Console.WriteLine();
@@ -640,12 +894,16 @@ namespace MonsterEscape
             Console.ResetColor(); Console.Write(" lanterna  ");
             Console.ForegroundColor = ConsoleColor.Magenta; Console.Write("FS");
             Console.ResetColor(); Console.Write(" fusível  ");
+            Console.ForegroundColor = ConsoleColor.Cyan; Console.Write("CT");
+            Console.ResetColor(); Console.Write(" cartão  ");
             Console.ForegroundColor = ConsoleColor.White; Console.Write("CR");
             Console.ResetColor(); Console.Write(" medalhão  ");
             Console.ForegroundColor = ConsoleColor.Green; Console.Write("[]");
             Console.ResetColor(); Console.Write(" armário  ");
             Console.ForegroundColor = ConsoleColor.Yellow; Console.Write("{}");
-            Console.ResetColor(); Console.Write(" caixa de luzes");
+            Console.ResetColor(); Console.Write(" luzes  ");
+            Console.ForegroundColor = ConsoleColor.Yellow; Console.Write("RE TC NV");
+            Console.ResetColor(); Console.Write(" tarefas");
         }
 
         static void DrawAll()
@@ -698,6 +956,11 @@ namespace MonsterEscape
             }
         }
 
+        static ConsoleColor TaskColor(bool done)
+        {
+            return done ? ConsoleColor.Green : (lightsOn ? ConsoleColor.Yellow : ConsoleColor.DarkGray);
+        }
+
         // Cada célula ocupa 2 caracteres para o mapa não ficar esticado na vertical.
         static void DrawTile(int x, int y)
         {
@@ -737,6 +1000,11 @@ namespace MonsterEscape
                 Console.ForegroundColor = ConsoleColor.Magenta;
                 Console.Write("FS");
             }
+            else if (hasLamp && IsCardVisible(x, y))
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write("CT");
+            }
             else if (hasLamp && IsMedalVisible(x, y))
             {
                 Console.ForegroundColor = ConsoleColor.White;
@@ -746,6 +1014,21 @@ namespace MonsterEscape
             {
                 Console.ForegroundColor = lightsOn ? ConsoleColor.Green : ConsoleColor.Yellow;
                 Console.Write("{}");
+            }
+            else if (x == ReactorPos.x && y == ReactorPos.y)
+            {
+                Console.ForegroundColor = TaskColor(questReactor);
+                Console.Write("RE");
+            }
+            else if (x == CommTermPos.x && y == CommTermPos.y)
+            {
+                Console.ForegroundColor = TaskColor(questCard);
+                Console.Write("TC");
+            }
+            else if (x == NavTermPos.x && y == NavTermPos.y)
+            {
+                Console.ForegroundColor = TaskColor(questNav);
+                Console.Write("NV");
             }
             else
             {
@@ -758,37 +1041,55 @@ namespace MonsterEscape
         {
             if (!hasLamp) return "Objetivo: encontra a lanterna (refeitório).";
             if (!lightsOn && !hasFuse) return "Objetivo: encontra o fusível (num canto isolado).";
-            if (!lightsOn && hasFuse) return "Objetivo: leva o fusível à sala das luzes.";
-            if (monsterAlive && !hasMedal) return "Objetivo: o monstro acordou! Apanha o medalhão na sala dele.";
+            if (!lightsOn) return "Objetivo: leva o fusível à sala das luzes.";
             if (monsterAlive && hasMedal) return "Objetivo: toca no monstro com o medalhão!";
+
+            if (monsterAlive && QuestsDone() < 3)
+            {
+                var pending = new List<string>();
+                if (!questReactor) pending.Add("reator");
+                if (!questCard) pending.Add(hasCard ? "terminal das comunicações" : "cartão (enfermaria)");
+                if (!questNav) pending.Add("antena (navegação)");
+                return "Objetivo: ele saiu do esconderijo! Tarefas (" + QuestsDone() + "/3): " + string.Join(", ", pending);
+            }
+
+            if (monsterAlive) return "Objetivo: a porta destrancou! Apanha o medalhão na sala do monstro.";
             return "Objetivo: vai à sala da saída e abre a porta!";
+        }
+
+        static void HudWrite(string s, ConsoleColor c)
+        {
+            Console.ForegroundColor = c;
+            Console.Write(s);
+            hudLen += s.Length;
+        }
+
+        static void HudItem(string name, bool has)
+        {
+            HudWrite(name + (has ? "[X] " : "[ ] "), has ? ConsoleColor.Green : ConsoleColor.DarkGray);
         }
 
         static void DrawHud()
         {
             Console.SetCursorPosition(0, 1);
-            Console.ResetColor();
-            Console.Write(" ITENS: ");
-            WriteItem("Lanterna", hasLamp);
-            WriteItem("Fusível", hasFuse);
-            WriteItem("Medalhão", hasMedal);
-            WriteItem("Chave", hasKey);
-            Console.ResetColor();
+            hudLen = 0;
+            HudWrite(" ITENS: ", ConsoleColor.Gray);
+            HudItem("Lanterna", hasLamp);
+            HudItem("Fusível", hasFuse);
+            HudItem("Cartão", hasCard);
+            HudItem("Medalhão", hasMedal);
+            HudItem("Chave", hasKey);
+
             int r = RoomAt(px, py);
             string where = r >= 0 ? Rooms[r].name : "Corredor";
-            Console.Write("  Capturas: " + captures + "  Local: " + where);
-            Console.Write(new string(' ', 25));
+            HudWrite(" Tarefas: " + QuestsDone() + "/3  Capturas: " + captures + "  Local: " + where, ConsoleColor.Gray);
+            Console.ResetColor();
+            Console.Write(new string(' ', Math.Max(0, 2 * Cols - hudLen)));
 
             Console.SetCursorPosition(1, 2);
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.Write(Objective().PadRight(2 * Cols));
             Console.ResetColor();
-        }
-
-        static void WriteItem(string name, bool has)
-        {
-            Console.ForegroundColor = has ? ConsoleColor.Green : ConsoleColor.DarkGray;
-            Console.Write(name + (has ? "[X] " : "[ ] "));
         }
 
         static void WriteStatus(string message, ConsoleColor color)
