@@ -13,9 +13,9 @@ namespace HalloweenMaze
         const string SecretCode = "UVQ";                       // exatamente 3 caracteres!!!!!!!!!!!!!!
         const int CellsW = 20;                                 // largura do labirinto (em células)
         const int CellsH = 10;                                  // altura do labirinto (em células)
-        const int ExtraLoops = 13;                             // paredes removidas para criar atalhos (mais = mais fácil fugir)
+        const int ExtraLoops = 18;                             // paredes removidas para criar atalhos (mais = mais fácil fugir)
         const int PlayerMoveMs = 110;                          // intervalo mínimo entre passos do jogador
-        static readonly int[] MonsterMoveMs = { 200, 150, 125 }; // intervalo entre passos do monstro (0, 1, 2 letras apanhadas)
+        static readonly int[] MonsterMoveMs = { 200, 180, 140 }; // intervalo entre passos do monstro (0, 1, 2 letras apanhadas)
         const int GraceMs = 2000;                              // tempo até o monstro acordar (início e após captura)
         const int CaughtPauseMs = 1500;                        // pausa depois de seres apanhado
         // ==================================================================
@@ -376,7 +376,7 @@ namespace HalloweenMaze
             Console.ResetColor(); Console.Write(" tu   ");
             Console.ForegroundColor = ConsoleColor.Red; Console.Write("MM");
             Console.ResetColor(); Console.Write(" monstro   ");
-            Console.ForegroundColor = ConsoleColor.Yellow; Console.Write("??");
+            Console.ForegroundColor = ConsoleColor.Green; Console.Write("??");
             Console.ResetColor(); Console.Write(" letra   [setas / WASD]");
         }
 
@@ -407,7 +407,7 @@ namespace HalloweenMaze
                 int li = LetterAt(x, y);
                 if (li >= 0 && !Got[li])
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.ForegroundColor = ConsoleColor.Green;
                     Console.Write("??");
                 }
                 else if (Wall[x, y])
@@ -466,7 +466,7 @@ namespace HalloweenMaze
             Console.WriteLine(SecretCode);
             Console.ResetColor();
             Console.WriteLine();
-            Console.WriteLine(" Corre para a porta!");
+            Console.WriteLine(" Guarde este código!");
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Gray;
             Console.WriteLine(" [qualquer tecla para sair]");
