@@ -67,6 +67,22 @@ namespace RitualHalloween
 
             Intro();
 
+            // ===== TELA DE LOADING (adicionada) =====
+            Console.CursorVisible = false;
+            Console.Title = "LOAD - Carregando...";
+
+            MostrarBanner();
+            CarregarBarraDeProgresso();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("\n\n      Carregamento concluído com sucesso!");
+            Console.ResetColor();
+
+            Thread.Sleep(1000);
+            Console.Clear();
+            Console.CursorVisible = true;
+            // ===== FIM DA TELA DE LOADING =====
+
             // O jogo só termina quando o jogador completar todas as rondas.
             // Se falhar uma ronda, repete essa mesma ronda (não volta ao início).
             Jogar();
@@ -306,6 +322,55 @@ namespace RitualHalloween
                 }
             }
             catch { }
+        }
+
+        // ===== METODOS DA TELA DE LOADING (adicionados) =====
+
+        static void MostrarBanner()
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(@"
+     ___       ________  ________  ________  ___  ________   ________     
+    |\  \     |\   __  \|\   __  \|\   ___ \|\  \|\   ___  \|\   ____\    
+    \ \  \    \ \  \|\  \ \  \|\  \ \  \_|\ \ \  \ \  \\ \  \ \  \___|    
+     \ \  \    \ \  \\\  \ \   __  \ \  \ \\ \ \  \ \  \\ \  \ \  \  ___  
+      \ \  \____\ \  \\\  \ \  \ \  \ \  \_\\ \ \  \ \  \\ \  \ \  \|\  \ 
+       \ \_______\ \_______\ \__\ \__\ \_______\ \__\ \__\\ \__\ \_______\
+        \|_______|\|_______|\|__|\|__|\|_______|\|__|\|__| \|__|\|_______|
+    ");
+            Console.ResetColor();
+        }
+
+        static void CarregarBarraDeProgresso()
+        {
+            // Cada posição representa um "degrau" da barra (0 a 10)
+            string[] barras =
+            {
+                "▒▒▒▒▒▒▒▒▒▒",
+                "█▒▒▒▒▒▒▒▒▒",
+                "██▒▒▒▒▒▒▒▒",
+                "███▒▒▒▒▒▒▒",
+                "████▒▒▒▒▒▒",
+                "█████▒▒▒▒▒",
+                "██████▒▒▒▒",
+                "███████▒▒▒",
+                "████████▒▒",
+                "█████████▒",
+                "██████████"
+            };
+
+            Console.WriteLine();
+
+            for (int i = 0; i < barras.Length; i++)
+            {
+                int percentual = i * 10;
+
+                // \r retorna o cursor para o início da linha, sobrescrevendo o conteúdo
+                Console.Write($"\r      Carregando [{barras[i]}] {percentual,3}%");
+
+                Thread.Sleep(300); // Simula o tempo de carregamento
+            }
+
         }
     }
 }
