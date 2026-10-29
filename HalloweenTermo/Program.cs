@@ -64,6 +64,15 @@ namespace HalloweenTermo
             Console.WriteLine("VERMELHO = Letra nao encontrada");
             Console.ResetColor();
 
+            Console.WriteLine("[ESPAÇO] para começar");
+            Console.ResetColor();
+
+            while (true)
+            {
+                if (Console.ReadKey(true).Key == ConsoleKey.Spacebar) break;
+            }
+
+
             // ===== TELA DE LOADING (adicionada) =====
             Console.CursorVisible = false;
             Console.Title = "LOAD - Carregando...";
