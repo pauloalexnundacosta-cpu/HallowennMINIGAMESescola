@@ -8,21 +8,7 @@ namespace HalloweenTermo
     {
         static void Main()
         {
-            // ===== TELA DE LOADING (adicionada) =====
-            Console.CursorVisible = false;
-            Console.Title = "LOAD - Carregando...";
-
-            MostrarBanner();
-            CarregarBarraDeProgresso();
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("\n\n      Carregamento concluído com sucesso!");
-            Console.ResetColor();
-
-            Thread.Sleep(1000);
-            Console.Clear();
-            Console.CursorVisible = true;
-            // ===== FIM DA TELA DE LOADING =====
+           
 
             Console.Title = "TERMO - Halloween";
 
@@ -77,6 +63,22 @@ namespace HalloweenTermo
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("VERMELHO = Letra nao encontrada");
             Console.ResetColor();
+
+            // ===== TELA DE LOADING (adicionada) =====
+            Console.CursorVisible = false;
+            Console.Title = "LOAD - Carregando...";
+
+            MostrarBanner();
+            CarregarBarraDeProgresso();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("\n\n      Carregamento concluído com sucesso!");
+            Console.ResetColor();
+
+            Thread.Sleep(1000);
+            Console.Clear();
+            Console.CursorVisible = true;
+            // ===== FIM DA TELA DE LOADING =====
 
             for (int t = 1; t <= tentativas; t++)
             {
